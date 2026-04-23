@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "litcluster"
+version = "0.1.0"
+description = "Topic-based clustering of scientific literature using TF-IDF and k-means"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [{name = "Vaibhav Deshmukh", email = "vdeshmukh203@gmail.com"}]
+requires-python = ">=3.8"
+keywords = ["literature", "clustering", "bibtex", "topic-modelling", "tfidf", "research"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Text Processing",
+]
+
+[project.scripts]
+litcluster = "litcluster:_cli"
+
+[tool.setuptools]
+py-modules = ["litcluster"]
