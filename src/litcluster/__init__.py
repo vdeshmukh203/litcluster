@@ -1,18 +1,34 @@
 """
 litcluster: Semantic clustering and topic modelling of scientific literature.
 
-Ingests collections of scientific abstracts or full papers (via DOI lists,
-BibTeX files, or arXiv IDs), embeds them using sentence-transformers, and
-applies hierarchical clustering and topic modelling to produce interactive
-visualisations and structured cluster summaries for systematic literature
-reviews.
+Ingests BibTeX files, CSV tables, or JSONL records; builds sparse TF-IDF
+vectors from title + abstract + keywords; and partitions papers into k
+topical clusters using Lloyd's algorithm with k-means++ initialisation.
+Outputs plain-text summaries, CSV, or JSON — no external dependencies.
 """
 
-__version__ = "0.1.0"
-__author__ = "Vaibhav Deshmukh"
-__license__ = "MIT"
+from litcluster import (  # noqa: F401
+    LitCluster,
+    Paper,
+    Cluster,
+    __version__,
+    _tokenise,
+    _tfidf,
+    _cosine,
+    _kmeans,
+    _bibtex_field,
+    main,
+)
 
-from .cluster import LitCluster
-from .embed import PaperEmbedder
-
-__all__ = ["LitCluster", "PaperEmbedder"]
+__all__ = [
+    "LitCluster",
+    "Paper",
+    "Cluster",
+    "__version__",
+    "_tokenise",
+    "_tfidf",
+    "_cosine",
+    "_kmeans",
+    "_bibtex_field",
+    "main",
+]
