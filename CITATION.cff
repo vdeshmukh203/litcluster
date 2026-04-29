@@ -2,12 +2,20 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "litcluster"
-abstract: "Semantic clustering tool for scientific literature using sentence transformers and HDBSCAN"
+abstract: "Topic-based clustering of scientific literature using TF-IDF vectorisation and k-means, implemented in the Python standard library with no external dependencies."
 authors:
   - family-names: Deshmukh
     given-names: V.A.
     alias: vdeshmukh203
+    orcid: "https://orcid.org/0000-0001-6745-7062"
 version: 0.1.0
-date-released: "2025-01-01"
+date-released: "2026-04-29"
 url: "https://github.com/vdeshmukh203/litcluster"
 license: MIT
+keywords:
+  - literature review
+  - clustering
+  - TF-IDF
+  - k-means
+  - bibliometrics
+  - topic modelling
