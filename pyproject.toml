@@ -10,18 +10,27 @@ readme = "README.md"
 license = {file = "LICENSE"}
 authors = [{name = "Vaibhav Deshmukh", email = "vdeshmukh203@gmail.com"}]
 requires-python = ">=3.8"
-keywords = ["literature", "clustering", "bibtex", "topic-modelling", "tfidf", "research"]
+keywords = ["literature", "clustering", "bibtex", "topic-modelling", "tfidf", "research", "systematic-review"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Text Processing",
 ]
 
 [project.scripts]
-litcluster = "litcluster:_cli"
+litcluster     = "litcluster:main"
+litcluster-gui = "litcluster_gui:main"
 
 [tool.setuptools]
-py-modules = ["litcluster"]
+py-modules = ["litcluster", "litcluster_gui"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
