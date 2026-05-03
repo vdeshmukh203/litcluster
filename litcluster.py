@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-litcluster.py — Literature Clustering Tool
-Clusters academic papers by topic using TF-IDF + k-means (pure stdlib).
-Stdlib-only. No external dependencies.
+litcluster — Literature Clustering Tool
+
+Clusters academic papers by topic using TF-IDF and k-means.
+Pure Python standard library; no external dependencies required.
 """
 
 from __future__ import annotations
@@ -17,6 +18,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+__version__ = "0.1.0"
+__all__ = [
+    "Paper", "Cluster", "LitCluster",
+    "_tokenise", "_tfidf", "_cosine", "_kmeans",
+]
 
 # ---------------------------------------------------------------------------
 # Text processing
@@ -37,17 +43,26 @@ _STOPWORDS = {
 
 
 def _tokenise(text: str) -> List[str]:
+    """Lowercase, extract alphabetic tokens of length >= 3, remove stopwords."""
     tokens = re.findall(r"[a-zA-Z]{3,}", text.lower())
     return [t for t in tokens if t not in _STOPWORDS]
 
 
-def _tfidf(documents: List[List[str]]) -> Tuple[List[Dict[str,float]], List[str]]:
-    """Compute TF-IDF vectors. Returns (vectors, vocab)."""
+def _tfidf(
+    documents: List[List[str]],
+) -> Tuple[List[Dict[str, float]], List[str]]:
+    """Compute TF-IDF sparse vectors for a list of tokenised documents.
+
+    Uses smoothed IDF: idf(t) = log((N+1)/(df(t)+1)) + 1.
+
+    Returns:
+        vectors: one dict per document mapping term -> TF-IDF weight.
+        vocab: sorted list of all terms.
+    """
     n = len(documents)
     if n == 0:
         return [], []
 
-    # Build vocab
     vocab_set: set = set()
     for doc in documents:
         vocab_set.update(doc)
@@ -55,15 +70,13 @@ def _tfidf(documents: List[List[str]]) -> Tuple[List[Dict[str,float]], List[str]
     term_idx = {t: i for i, t in enumerate(vocab)}
     V = len(vocab)
 
-    # Document frequency
+    # document frequency
     df = [0] * V
     for doc in documents:
-        doc_set = set(doc)
-        for t in doc_set:
+        for t in set(doc):
             if t in term_idx:
                 df[term_idx[t]] += 1
 
-    # TF-IDF
     vectors: List[Dict[str, float]] = []
     for doc in documents:
         tf: Dict[int, int] = {}
@@ -71,8 +84,8 @@ def _tfidf(documents: List[List[str]]) -> Tuple[List[Dict[str,float]], List[str]
             if t in term_idx:
                 idx = term_idx[t]
                 tf[idx] = tf.get(idx, 0) + 1
-        vec: Dict[str, float] = {}
         doc_len = len(doc) or 1
+        vec: Dict[str, float] = {}
         for idx, count in tf.items():
             term = vocab[idx]
             tf_val = count / doc_len
@@ -83,10 +96,13 @@ def _tfidf(documents: List[List[str]]) -> Tuple[List[Dict[str,float]], List[str]
 
 
 def _cosine(a: Dict[str, float], b: Dict[str, float]) -> float:
-    dot = sum(a.get(t, 0.0) * b.get(t, 0.0) for t in b)
-    norm_a = math.sqrt(sum(v*v for v in a.values()))
-    norm_b = math.sqrt(sum(v*v for v in b.values()))
-    if norm_a == 0 or norm_b == 0:
+    """Cosine similarity between two sparse vectors represented as dicts."""
+    if not a or not b:
+        return 0.0
+    dot = sum(a.get(t, 0.0) * v for t, v in b.items())
+    norm_a = math.sqrt(sum(v * v for v in a.values()))
+    norm_b = math.sqrt(sum(v * v for v in b.values()))
+    if norm_a == 0.0 or norm_b == 0.0:
         return 0.0
     return dot / (norm_a * norm_b)
 
@@ -97,13 +113,22 @@ def _kmeans(
     max_iter: int = 100,
     seed: int = 42,
 ) -> List[int]:
-    """Lloyd's k-means on sparse TF-IDF vectors."""
+    """Lloyd's k-means on sparse cosine-similarity TF-IDF vectors.
+
+    Args:
+        vectors: sparse document vectors (list of dicts).
+        k: number of clusters (capped at len(vectors)).
+        max_iter: maximum number of Lloyd iterations.
+        seed: random seed for centroid initialisation.
+
+    Returns:
+        Integer cluster label for each document.
+    """
     n = len(vectors)
     if n == 0:
         return []
     k = min(k, n)
 
-    # Seeded centroid initialisation (evenly spaced)
     import random
     rng = random.Random(seed)
     centroid_indices = rng.sample(range(n), k)
@@ -111,28 +136,26 @@ def _kmeans(
     labels = [0] * n
 
     for _ in range(max_iter):
-        # Assignment
-        new_labels = []
-        for vec in vectors:
-            best = max(range(k), key=lambda c: _cosine(vec, centroids[c]))
-            new_labels.append(best)
-
+        new_labels = [
+            max(range(k), key=lambda c: _cosine(vec, centroids[c]))
+            for vec in vectors
+        ]
         if new_labels == labels:
             break
         labels = new_labels
 
-        # Update centroids
         for c in range(k):
-            members = [vectors[i] for i, l in enumerate(labels) if l == c]
+            members = [vectors[i] for i, lbl in enumerate(labels) if lbl == c]
             if not members:
-                centroids[c] = dict(vectors[rng.randint(0, n-1)])
+                # re-seed empty cluster to a random point
+                centroids[c] = dict(vectors[rng.randint(0, n - 1)])
                 continue
             new_centroid: Dict[str, float] = {}
             for vec in members:
                 for t, v in vec.items():
                     new_centroid[t] = new_centroid.get(t, 0.0) + v
-            total = len(members)
-            centroids[c] = {t: v/total for t, v in new_centroid.items()}
+            m = len(members)
+            centroids[c] = {t: v / m for t, v in new_centroid.items()}
 
     return labels
 
@@ -143,6 +166,8 @@ def _kmeans(
 
 @dataclass
 class Paper:
+    """Metadata for a single academic paper."""
+
     paper_id: str
     title: str
     abstract: str = ""
@@ -154,25 +179,34 @@ class Paper:
 
     @property
     def text(self) -> str:
+        """Concatenated text used for vectorisation."""
         return f"{self.title} {self.abstract} {self.keywords}"
 
     def to_dict(self) -> dict:
         return {
-            "paper_id": self.paper_id, "title": self.title, "abstract": self.abstract,
-            "authors": self.authors, "year": self.year, "venue": self.venue,
-            "doi": self.doi, "keywords": self.keywords,
+            "paper_id": self.paper_id,
+            "title": self.title,
+            "abstract": self.abstract,
+            "authors": self.authors,
+            "year": self.year,
+            "venue": self.venue,
+            "doi": self.doi,
+            "keywords": self.keywords,
         }
 
 
 @dataclass
 class Cluster:
+    """A group of thematically similar papers with extracted top terms."""
+
     cluster_id: int
     papers: List[Paper] = field(default_factory=list)
     top_terms: List[str] = field(default_factory=list)
 
     @property
     def label(self) -> str:
-        return f"Cluster {self.cluster_id}: {', '.join(self.top_terms[:3])}"
+        terms = ", ".join(self.top_terms[:3]) if self.top_terms else "—"
+        return f"Cluster {self.cluster_id}: {terms}"
 
     def to_dict(self) -> dict:
         return {
@@ -189,8 +223,30 @@ class Cluster:
 # ---------------------------------------------------------------------------
 
 class LitCluster:
-    def __init__(self, k: int = 5, max_iter: int = 100, seed: int = 42,
-                 min_term_freq: int = 2):
+    """Cluster a collection of academic papers by topic using TF-IDF + k-means.
+
+    Workflow::
+
+        lc = LitCluster.from_bibtex(Path("refs.bib"), k=6)
+        lc.fit()
+        print(lc.summary())
+        lc.export_csv(Path("clusters.csv"))
+    """
+
+    def __init__(
+        self,
+        k: int = 5,
+        max_iter: int = 100,
+        seed: int = 42,
+        min_term_freq: int = 2,
+    ) -> None:
+        """
+        Args:
+            k: number of clusters.
+            max_iter: maximum k-means iterations.
+            seed: random seed for reproducibility.
+            min_term_freq: minimum document frequency for a term to be kept.
+        """
         self.k = k
         self.max_iter = max_iter
         self.seed = seed
@@ -201,8 +257,18 @@ class LitCluster:
         self._vectors: List[Dict[str, float]] = []
         self._vocab: List[str] = []
 
+    # ------------------------------------------------------------------
+    # Loaders
+    # ------------------------------------------------------------------
+
     @classmethod
     def from_csv(cls, path: Path, **kwargs) -> "LitCluster":
+        """Load papers from a CSV file.
+
+        Expected columns: ``paper_id``, ``title``, ``abstract``, ``authors``,
+        ``year``, ``venue``, ``doi``, ``keywords``.  All columns are optional
+        except ``title``.
+        """
         obj = cls(**kwargs)
         with path.open(encoding="utf-8", errors="replace", newline="") as fh:
             reader = csv.DictReader(fh)
@@ -221,6 +287,7 @@ class LitCluster:
 
     @classmethod
     def from_jsonl(cls, path: Path, **kwargs) -> "LitCluster":
+        """Load papers from a JSONL file (one JSON object per line)."""
         obj = cls(**kwargs)
         with path.open(encoding="utf-8") as fh:
             for i, line in enumerate(fh):
@@ -242,56 +309,110 @@ class LitCluster:
 
     @classmethod
     def from_bibtex(cls, path: Path, **kwargs) -> "LitCluster":
-        """Parse a BibTeX file for titles, abstracts, keywords."""
+        """Load papers from a BibTeX (``.bib``) file.
+
+        Extracts ``title``, ``abstract``, ``author``, ``year``,
+        ``journal``/``booktitle``, ``doi``, and ``keywords`` fields.
+        Handles multi-line values and nested braces.
+        """
         obj = cls(**kwargs)
         text = path.read_text(encoding="utf-8", errors="replace")
         entries = re.split(r'(?=@\w+\s*\{)', text)
         for i, entry in enumerate(entries):
-            if not entry.strip() or not entry.startswith('@'):
+            entry = entry.strip()
+            if not entry or not entry.startswith('@'):
                 continue
-            def _get(field):
-                m = re.search(rf'{field}\s*=\s*[{{"](.*?)[}}"\,]', entry, re.IGNORECASE | re.DOTALL)
-                return m.group(1).strip() if m else ""
-            m_key = re.match(r'@\w+\s*\{\s*(\S+?)[,}]', entry)
+            m_key = re.match(r'@\w+\s*\{\s*([^,\s]+)', entry)
             key = m_key.group(1) if m_key else str(i)
+
+            def _get(field_name: str, src: str = entry) -> str:
+                m = re.search(
+                    rf'\b{field_name}\s*=\s*', src, re.IGNORECASE
+                )
+                if not m:
+                    return ""
+                pos = m.end()
+                if pos >= len(src):
+                    return ""
+                ch = src[pos]
+                if ch == '{':
+                    depth = 0
+                    for j in range(pos, len(src)):
+                        if src[j] == '{':
+                            depth += 1
+                        elif src[j] == '}':
+                            depth -= 1
+                            if depth == 0:
+                                return src[pos + 1:j].strip()
+                    return ""
+                if ch == '"':
+                    end = src.find('"', pos + 1)
+                    return src[pos + 1:end].strip() if end != -1 else ""
+                # bare numeric value (e.g. year = 2020)
+                m2 = re.match(r'\s*(\w+)', src[pos:])
+                return m2.group(1) if m2 else ""
+
             obj.papers.append(Paper(
-                paper_id=key, title=_get('title'), abstract=_get('abstract'),
-                authors=_get('author'), year=_get('year'),
+                paper_id=key,
+                title=_get('title'),
+                abstract=_get('abstract'),
+                authors=_get('author'),
+                year=_get('year'),
                 venue=_get('journal') or _get('booktitle'),
-                doi=_get('doi'), keywords=_get('keywords'),
+                doi=_get('doi'),
+                keywords=_get('keywords'),
             ))
         return obj
 
+    # ------------------------------------------------------------------
+    # Core algorithm
+    # ------------------------------------------------------------------
+
     def fit(self) -> "LitCluster":
+        """Vectorise papers and run k-means clustering.
+
+        Returns ``self`` to allow chaining::
+
+            lc = LitCluster.from_csv(path, k=5).fit()
+        """
         if not self.papers:
             return self
+
         tokens_list = [_tokenise(p.text) for p in self.papers]
 
-        # Filter rare terms
         if self.min_term_freq > 1:
             freq: Dict[str, int] = {}
             for tokens in tokens_list:
                 for t in set(tokens):
                     freq[t] = freq.get(t, 0) + 1
-            tokens_list = [[t for t in tokens if freq.get(t, 0) >= self.min_term_freq]
-                           for tokens in tokens_list]
+            tokens_list = [
+                [t for t in tokens if freq.get(t, 0) >= self.min_term_freq]
+                for tokens in tokens_list
+            ]
 
         self._vectors, self._vocab = _tfidf(tokens_list)
         self._labels = _kmeans(self._vectors, self.k, self.max_iter, self.seed)
 
-        # Build cluster objects
-        clusters: Dict[int, List] = {}
-        for paper, label in zip(self.papers, self._labels):
-            clusters.setdefault(label, []).append(paper)
+        groups: Dict[int, List[Paper]] = {}
+        for paper, lbl in zip(self.papers, self._labels):
+            groups.setdefault(lbl, []).append(paper)
 
-        self.clusters = []
-        for cid in sorted(clusters):
-            top_terms = self._top_terms_for_cluster(cid, n=10)
-            self.clusters.append(Cluster(cluster_id=cid, papers=clusters[cid], top_terms=top_terms))
+        self.clusters = [
+            Cluster(
+                cluster_id=cid,
+                papers=groups[cid],
+                top_terms=self._top_terms_for_cluster(cid),
+            )
+            for cid in sorted(groups)
+        ]
         return self
 
     def _top_terms_for_cluster(self, cid: int, n: int = 10) -> List[str]:
-        member_vecs = [self._vectors[i] for i, l in enumerate(self._labels) if l == cid]
+        member_vecs = [
+            self._vectors[i]
+            for i, lbl in enumerate(self._labels)
+            if lbl == cid
+        ]
         if not member_vecs:
             return []
         scores: Dict[str, float] = {}
@@ -300,23 +421,43 @@ class LitCluster:
                 scores[t] = scores.get(t, 0.0) + v
         return sorted(scores, key=lambda t: -scores[t])[:n]
 
+    # ------------------------------------------------------------------
+    # Export
+    # ------------------------------------------------------------------
+
     def export_csv(self, path: Path) -> None:
+        """Write cluster assignments to a CSV file."""
         with path.open("w", newline="", encoding="utf-8") as fh:
             w = csv.writer(fh)
-            w.writerow(["cluster_id","cluster_label","paper_id","title","authors","year","venue","doi"])
+            w.writerow([
+                "cluster_id", "cluster_label", "paper_id",
+                "title", "authors", "year", "venue", "doi",
+            ])
             for cluster in self.clusters:
                 for p in cluster.papers:
-                    w.writerow([cluster.cluster_id, cluster.label, p.paper_id,
-                                p.title, p.authors, p.year, p.venue, p.doi])
+                    w.writerow([
+                        cluster.cluster_id, cluster.label, p.paper_id,
+                        p.title, p.authors, p.year, p.venue, p.doi,
+                    ])
 
     def export_json(self, path: Path) -> None:
+        """Write full cluster data (papers + top terms) to a JSON file."""
         with path.open("w", encoding="utf-8") as fh:
-            json.dump([c.to_dict() for c in self.clusters], fh, indent=2, ensure_ascii=False)
+            json.dump(
+                [c.to_dict() for c in self.clusters],
+                fh, indent=2, ensure_ascii=False,
+            )
 
     def summary(self) -> str:
-        lines = [f"LitCluster: {len(self.papers)} papers in {len(self.clusters)} clusters", ""]
+        """Return a human-readable text summary of clustering results."""
+        lines = [
+            f"LitCluster: {len(self.papers)} papers in {len(self.clusters)} clusters",
+            "",
+        ]
         for c in self.clusters:
-            lines.append(f"  [{c.cluster_id}] {c.label} ({len(c.papers)} papers)")
+            lines.append(
+                f"  [{c.cluster_id}] {c.label}  ({len(c.papers)} papers)"
+            )
         return "\n".join(lines)
 
 
@@ -325,29 +466,51 @@ class LitCluster:
 # ---------------------------------------------------------------------------
 
 def _parse_args(argv=None):
-    p = argparse.ArgumentParser(prog="litcluster",
-                                description="Cluster academic papers by topic using TF-IDF + k-means.")
-    p.add_argument("input", help="Input file: CSV, JSONL, or .bib")
+    p = argparse.ArgumentParser(
+        prog="litcluster",
+        description="Cluster academic papers by topic using TF-IDF + k-means.",
+    )
+    p.add_argument("input", nargs="?",
+                   help="Input file: CSV, JSONL, or .bib (omit to launch GUI)")
     p.add_argument("-k", "--clusters", type=int, default=5, dest="k",
                    help="Number of clusters (default: 5)")
-    p.add_argument("--format", choices=["csv","json","summary"], default="summary")
-    p.add_argument("--output", "-o", default=None, help="Output file (default: stdout/auto)")
+    p.add_argument("--format", choices=["csv", "json", "summary"],
+                   default="summary")
+    p.add_argument("--output", "-o", default=None,
+                   help="Output file (default: stdout for summary, auto for csv/json)")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--max-iter", type=int, default=100)
     p.add_argument("--min-freq", type=int, default=2,
-                   help="Minimum term frequency to include in vocabulary (default: 2)")
+                   help="Minimum term document frequency (default: 2)")
+    p.add_argument("--gui", action="store_true",
+                   help="Launch the graphical user interface")
+    p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return p.parse_args(argv)
 
 
 def main(argv=None) -> int:
+    """Entry point for the ``litcluster`` command."""
     args = _parse_args(argv)
+
+    if args.gui or args.input is None:
+        try:
+            from litcluster_gui import main as gui_main
+            gui_main()
+        except ImportError as exc:
+            print(f"GUI unavailable: {exc}", file=sys.stderr)
+            return 1
+        return 0
+
     path = Path(args.input)
     if not path.is_file():
         print(f"Error: {path} not found", file=sys.stderr)
         return 1
 
     suffix = path.suffix.lower()
-    kwargs = dict(k=args.k, max_iter=args.max_iter, seed=args.seed, min_term_freq=args.min_freq)
+    kwargs = dict(
+        k=args.k, max_iter=args.max_iter,
+        seed=args.seed, min_term_freq=args.min_freq,
+    )
     if suffix == ".bib":
         lc = LitCluster.from_bibtex(path, **kwargs)
     elif suffix == ".jsonl":
@@ -373,6 +536,10 @@ def main(argv=None) -> int:
         print(f"Clusters written to {out}")
 
     return 0
+
+
+# ``_cli`` is a public alias kept for compatibility with pyproject.toml scripts.
+_cli = main
 
 
 if __name__ == "__main__":
