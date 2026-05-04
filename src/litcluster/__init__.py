@@ -1,18 +1,19 @@
 """
-litcluster: Semantic clustering and topic modelling of scientific literature.
+litcluster: Topic-based clustering of scientific literature using TF-IDF and k-means.
 
-Ingests collections of scientific abstracts or full papers (via DOI lists,
-BibTeX files, or arXiv IDs), embeds them using sentence-transformers, and
-applies hierarchical clustering and topic modelling to produce interactive
-visualisations and structured cluster summaries for systematic literature
-reviews.
+This package re-exports the public API from the top-level ``litcluster`` module
+so that both ``import litcluster`` and ``from litcluster import LitCluster``
+work regardless of whether the package is installed from source or used
+in-place.
 """
 
-__version__ = "0.1.0"
+from litcluster import (  # noqa: F401
+    LitCluster,
+    Paper,
+    Cluster,
+    __version__,
+    __all__,
+)
+
 __author__ = "Vaibhav Deshmukh"
 __license__ = "MIT"
-
-from .cluster import LitCluster
-from .embed import PaperEmbedder
-
-__all__ = ["LitCluster", "PaperEmbedder"]
