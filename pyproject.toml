@@ -10,7 +10,10 @@ readme = "README.md"
 license = {file = "LICENSE"}
 authors = [{name = "Vaibhav Deshmukh", email = "vdeshmukh203@gmail.com"}]
 requires-python = ">=3.8"
-keywords = ["literature", "clustering", "bibtex", "topic-modelling", "tfidf", "research"]
+keywords = [
+    "literature", "clustering", "bibtex", "topic-modelling",
+    "tfidf", "research", "bibliometrics",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -21,7 +24,8 @@ classifiers = [
 ]
 
 [project.scripts]
-litcluster = "litcluster:_cli"
+litcluster     = "litcluster:main"
+litcluster-gui = "gui:run_gui"
 
 [tool.setuptools]
-py-modules = ["litcluster"]
+py-modules = ["litcluster", "gui"]
