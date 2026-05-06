@@ -21,7 +21,7 @@ classifiers = [
 ]
 
 [project.scripts]
-litcluster = "litcluster:_cli"
+litcluster = "litcluster:main"
 
 [tool.setuptools]
-py-modules = ["litcluster"]
+py-modules = ["litcluster", "litcluster_gui"]
