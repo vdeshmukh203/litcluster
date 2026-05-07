@@ -20,8 +20,13 @@ classifiers = [
     "Topic :: Text Processing",
 ]
 
+[project.urls]
+Homepage = "https://github.com/vdeshmukh203/litcluster"
+"Bug Tracker" = "https://github.com/vdeshmukh203/litcluster/issues"
+
 [project.scripts]
-litcluster = "litcluster:_cli"
+litcluster     = "litcluster:main"
+litcluster-gui = "litcluster_gui:main"
 
 [tool.setuptools]
-py-modules = ["litcluster"]
+py-modules = ["litcluster", "litcluster_gui"]
